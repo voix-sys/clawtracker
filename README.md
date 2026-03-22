@@ -20,6 +20,16 @@ streamlit run app.py --server.port 8507
 
 브라우저: `http://localhost:8507`
 
+## 사용량 경고 알림(시범)
+```bash
+cd clawtracker
+source .venv/bin/activate
+pip install -r requirements.txt
+export TELEGRAM_BOT_TOKEN=... 
+export TELEGRAM_CHAT_ID=...
+python watch_usage.py
+```
+
 ## 보안
 - 기본 로컬 전용(127.0.0.1)
 - 토큰/비밀키 저장 안 함
