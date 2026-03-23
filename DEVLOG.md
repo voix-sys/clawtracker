@@ -30,6 +30,15 @@
   3) 색상 규칙 정리 (#FF0000 = critical only)
   4) 로컬 우선 + Tailscale 외부 접근 전제 유지
 
+### 2026-03-24 08:xx 업데이트
+- `app.py` v0.2 반영 완료
+  - Global status 레벨 배지(NORMAL/WARNING/CRITICAL)
+  - 5h/Week quota KPI 카드 추가
+  - healthz/readyz Priority 패널 강화
+  - 로그 가독성(폰트/행간/컨테이너) 개선
+  - Gateway 비정상 시 degraded/offline 경고 표시
+- 색상 규칙 반영: 빨강은 critical 의미로만 사용
+
 ### 대기 항목
 - Telegram 신규 봇 토큰 수령 후 실알림 활성화
 - SSE/WebSocket 실시간 스트림 고도화
