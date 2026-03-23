@@ -39,6 +39,13 @@
   - Gateway 비정상 시 degraded/offline 경고 표시
 - 색상 규칙 반영: 빨강은 critical 의미로만 사용
 
+### 2026-03-24 08:1x 업데이트
+- `watch_usage.py` 경고/위험 임계치 2단계로 개선
+  - 주의: 30% 이하, 위험: 15% 이하
+- `monitor_loop.py` 추가
+  - 5분 간격 자동 체크
+  - 레벨 변경 시 Telegram 자동 알림
+
 ### 대기 항목
 - Telegram 신규 봇 토큰 수령 후 실알림 활성화
 - SSE/WebSocket 실시간 스트림 고도화

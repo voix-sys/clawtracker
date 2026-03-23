@@ -26,10 +26,21 @@ streamlit run app.py --server.port 8507
 cd clawtracker
 source .venv/bin/activate
 pip install -r requirements.txt
-export TELEGRAM_BOT_TOKEN=... 
+export TELEGRAM_BOT_TOKEN=...
 export TELEGRAM_CHAT_ID=...
 python watch_usage.py
 ```
+
+## 사용량 모니터 루프(5분 간격)
+```bash
+cd clawtracker
+source .venv/bin/activate
+export TELEGRAM_BOT_TOKEN=...
+export TELEGRAM_CHAT_ID=...
+python monitor_loop.py
+```
+- 경고 기준: 5h 또는 week 잔량 30% 이하
+- 위험 기준: 5h 또는 week 잔량 15% 이하
 
 ## 보안
 - 기본 로컬 전용(127.0.0.1)

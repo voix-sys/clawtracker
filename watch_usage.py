@@ -22,8 +22,11 @@ def main():
         print("parse failed")
         return
 
-    if h5 <= 20 or week <= 20:
-        ok, msg = send_telegram(f"⚠️ ClawTracker 사용량 경고: 5h={h5}% / week={week}%")
+    if h5 <= 15 or week <= 15:
+        ok, msg = send_telegram(f"🔴 ClawTracker 사용량 위험: 5h={h5}% / week={week}%")
+        print("notify", ok, msg)
+    elif h5 <= 30 or week <= 30:
+        ok, msg = send_telegram(f"🟠 ClawTracker 사용량 주의: 5h={h5}% / week={week}%")
         print("notify", ok, msg)
     else:
         print(f"healthy: 5h={h5}% week={week}%")
