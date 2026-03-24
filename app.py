@@ -34,16 +34,26 @@ def check_http(url: str) -> tuple[bool, str]:
 
 def parse_usage(text: str) -> dict:
     out = {"h5": None, "week": None, "context": None, "model": "unknown"}
-    m_model = re.search(r"Model:\s+([^·\n]+)", text)
+
+    # Model line can contain emoji/bullets; keep robust
+    m_model = re.search(r"Model:\s*([^\n]+)", text)
     if m_model:
         out["model"] = m_model.group(1).strip()
-    m_usage = re.search(r"Usage:\s+5h\s+(\d+)%\s+left.*Week\s+(\d+)%\s+left", text, re.DOTALL)
-    if m_usage:
-        out["h5"] = int(m_usage.group(1))
-        out["week"] = int(m_usage.group(2))
-    m_ctx = re.search(r"Context:\s+([^\n]+)", text)
+
+    # Parse independently to avoid multiline/format drift issues
+    m_h5 = re.search(r"5h\s+(\d+)%\s+left", text)
+    m_week = re.search(r"Week\s+(\d+)%\s+left", text)
+    if m_h5:
+        out["h5"] = int(m_h5.group(1))
+    if m_week:
+        out["week"] = int(m_week.group(1))
+
+    # Context line format: "Context: 107k/272k (39%) · ..."
+    m_ctx = re.search(r"Context:\s*([^\n]+)", text)
     if m_ctx:
-        out["context"] = m_ctx.group(1).strip()
+        ctx = m_ctx.group(1).strip()
+        out["context"] = ctx.split("·")[0].strip()
+
     return out
 
 
