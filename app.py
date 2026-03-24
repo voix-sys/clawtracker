@@ -78,7 +78,6 @@ def usage_from_status_json(payload: dict | None) -> dict:
     if not payload:
         return out
 
-    # provider usage windows (usedPercent => convert to left)
     providers = (payload.get("usage") or {}).get("providers") or []
     if providers:
         windows = providers[0].get("windows") or []
@@ -105,6 +104,30 @@ def usage_from_status_json(payload: dict | None) -> dict:
             else:
                 out["context"] = f"{total}/{ctx}"
 
+    return out
+
+
+def model_summary_from_status_json(payload: dict | None) -> list[dict]:
+    if not payload:
+        return []
+    sessions = (payload.get("sessions") or {}).get("recent") or []
+    buckets: dict[str, dict] = {}
+    for s in sessions:
+        m = s.get("model") or "unknown"
+        b = buckets.setdefault(m, {"model": m, "count": 0, "used_sum": 0, "used_n": 0})
+        b["count"] += 1
+        pu = s.get("percentUsed")
+        if isinstance(pu, (int, float)):
+            b["used_sum"] += pu
+            b["used_n"] += 1
+
+    out = []
+    for b in buckets.values():
+        avg = None
+        if b["used_n"]:
+            avg = round(b["used_sum"] / b["used_n"])
+        out.append({"model": b["model"], "sessions": b["count"], "avg_used": avg})
+    out.sort(key=lambda x: x["sessions"], reverse=True)
     return out
 
 
@@ -172,20 +195,29 @@ st.markdown(
 
 st.title("🦞 ClawTracker — OpenClaw Operations")
 
-c1, c2, c3, c4 = st.columns([1.4, 1.1, 1.1, 1.2])
+c1, c2, c3 = st.columns([1.5, 1.2, 1.3])
 with c1:
     st.markdown(f"<div class='card'><div class='muted'>GLOBAL STATUS</div><div class='kpi {level_class}'>{level_text}</div><div class='muted'>Refresh: {REFRESH_SEC}s</div></div>", unsafe_allow_html=True)
 with c2:
     h5 = usage.get("h5")
-    h5_text = f"{h5}%" if h5 is not None else "N/A"
-    st.markdown(f"<div class='card'><div class='muted'>5H QUOTA LEFT</div><div class='kpi'>{h5_text}</div></div>", unsafe_allow_html=True)
-with c3:
     wk = usage.get("week")
-    wk_text = f"{wk}%" if wk is not None else "N/A"
-    st.markdown(f"<div class='card'><div class='muted'>WEEK QUOTA LEFT</div><div class='kpi'>{wk_text}</div></div>", unsafe_allow_html=True)
-with c4:
+    h5_text = f"{h5}%" if h5 is not None else "데이터 소스 없음"
+    wk_text = f"{wk}%" if wk is not None else "데이터 소스 없음"
+    st.markdown(f"<div class='card'><div class='muted'>CODEX QUOTA</div><div style='font-size:1.1rem;font-weight:700'>5H: {h5_text}</div><div style='font-size:1.1rem;font-weight:700'>WEEK: {wk_text}</div><div class='muted'>※ provider usage 기준</div></div>", unsafe_allow_html=True)
+with c3:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     st.markdown(f"<div class='card'><div class='muted'>LAST REFRESH</div><div class='kpi' style='font-size:1.35rem'>{now}</div><div class='muted'>{usage.get('model','unknown')}</div></div>", unsafe_allow_html=True)
+
+st.subheader("🧠 모델별 현황")
+models = model_summary_from_status_json(status_json)
+if not models:
+    st.info("모델별 세션 데이터를 가져오지 못했습니다.")
+else:
+    cols = st.columns(min(3, len(models)))
+    for i, m in enumerate(models[:3]):
+        with cols[i]:
+            avg = f"{m['avg_used']}% used" if m['avg_used'] is not None else "데이터 소스 없음"
+            st.markdown(f"<div class='card'><div class='muted'>{m['model']}</div><div style='font-size:1.1rem;font-weight:700'>세션 {m['sessions']}개</div><div class='muted'>평균 컨텍스트 {avg}</div></div>", unsafe_allow_html=True)
 
 if not health_ok or not ready_ok:
     st.error("Gateway Unreachable or Not Ready. Dashboard is in degraded/offline mode.")
@@ -201,18 +233,35 @@ with left:
     with p2:
         st.markdown("<div class='card'><div class='muted'>READYZ</div><div class='kpi' style='font-size:1.15rem'>" + ready_msg + "</div></div>", unsafe_allow_html=True)
 
-    st.markdown("<div class='card'><div class='muted'>SESSION STATUS RAW</div></div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='logbox'>{session_text}</div>", unsafe_allow_html=True)
-
     st.subheader("📡 Live Activity (Recent Logs)")
     st.markdown(f"<div class='logbox'>{logs_text}</div>", unsafe_allow_html=True)
 
 with right:
-    st.subheader("🧵 Sessions / Runtime")
-    st.markdown(f"<div class='logbox'>{status_text}</div>", unsafe_allow_html=True)
+    st.subheader("✅ 운영자 요약")
+    sessions = (status_json or {}).get("sessions", {}).get("recent", []) if status_json else []
+    active_cnt = len(sessions)
+    warn_items = []
+    if not health_ok or not ready_ok:
+        warn_items.append("Gateway 상태 확인 필요")
+    if usage.get("h5") is not None and usage.get("h5") <= 30:
+        warn_items.append("Codex 5h 잔량 30% 이하")
+    if usage.get("week") is not None and usage.get("week") <= 30:
+        warn_items.append("Codex week 잔량 30% 이하")
+
+    summary_html = f"<div class='card'><div class='muted'>활성 세션</div><div style='font-size:1.4rem;font-weight:800'>{active_cnt}개</div>"
+    if warn_items:
+        summary_html += "<div class='muted'>지금 조치 필요:</div><ul>" + "".join([f"<li>{w}</li>" for w in warn_items[:3]]) + "</ul>"
+    else:
+        summary_html += "<div class='normal' style='font-weight:700'>즉시 조치 이슈 없음</div>"
+    summary_html += "</div>"
+    st.markdown(summary_html, unsafe_allow_html=True)
 
     st.subheader("🧠 Context")
-    st.markdown(f"<div class='card'><div class='muted'>Current Context</div><div style='font-size:1rem;font-weight:700'>{usage.get('context') or 'N/A'}</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='card'><div class='muted'>Current Context</div><div style='font-size:1rem;font-weight:700'>{usage.get('context') or '데이터 소스 없음'}</div></div>", unsafe_allow_html=True)
+
+    with st.expander("디버그 RAW 보기"):
+        st.markdown(f"<div class='logbox'>{session_text}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='logbox'>{status_text}</div>", unsafe_allow_html=True)
 
 st.caption("v0.2 readability mode · red color is reserved for CRITICAL only")
 
