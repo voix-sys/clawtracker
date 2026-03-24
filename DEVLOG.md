@@ -46,6 +46,11 @@
   - 5분 간격 자동 체크
   - 레벨 변경 시 Telegram 자동 알림
 
+### 2026-03-24 10:xx 업데이트
+- `app.py` OFFLINE MODE 경고 카드 추가
+- `RUNBOOK.md` 추가 (실행/운영/장애 대응/Tailscale 접근 요약)
+- README에서 운영 가이드 연결
+
 ### 대기 항목
 - Telegram 신규 봇 토큰 수령 후 실알림 활성화
 - SSE/WebSocket 실시간 스트림 고도화

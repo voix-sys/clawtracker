@@ -42,7 +42,10 @@ python monitor_loop.py
 - 경고 기준: 5h 또는 week 잔량 30% 이하
 - 위험 기준: 5h 또는 week 잔량 15% 이하
 
+## 운영 가이드
+- 상세 실행/장애 대응: `RUNBOOK.md`
+
 ## 보안
 - 기본 로컬 전용(127.0.0.1)
-- 토큰/비밀키 저장 안 함
+- 토큰/비밀키 저장 안 함 (`.env.local`은 git 제외)
 - 외부 공개 전 sanitization 권장

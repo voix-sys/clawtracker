@@ -117,6 +117,7 @@ with c4:
 
 if not health_ok or not ready_ok:
     st.error("Gateway Unreachable or Not Ready. Dashboard is in degraded/offline mode.")
+    st.markdown("<div class='card critical'><b>OFFLINE MODE</b> · 실시간 수집이 중단되었습니다. gateway/daemon 상태를 확인하세요.</div>", unsafe_allow_html=True)
 
 left, right = st.columns([1.35, 1])
 
