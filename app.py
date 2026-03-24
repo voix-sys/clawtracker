@@ -39,6 +39,11 @@ def parse_usage(text: str) -> dict:
     m_model = re.search(r"Model:\s*([^\n]+)", text)
     if m_model:
         out["model"] = m_model.group(1).strip()
+    else:
+        # fallback from `openclaw status` table rows
+        m_model2 = re.search(r"\b(gpt-[\w\.-]+|gemini-[\w\.-]+|claude-[\w\.-]+|openai-codex/[\w\.-]+)\b", text)
+        if m_model2:
+            out["model"] = m_model2.group(1)
 
     # Parse independently to avoid multiline/format drift issues
     m_h5 = re.search(r"5h\s+(\d+)%\s+left", text)
@@ -53,6 +58,11 @@ def parse_usage(text: str) -> dict:
     if m_ctx:
         ctx = m_ctx.group(1).strip()
         out["context"] = ctx.split("·")[0].strip()
+    else:
+        # fallback from sessions table (e.g., 107k/272k (39%))
+        m_ctx2 = re.search(r"\b\d+k/\d+k\s*\(\d+%\)\b", text)
+        if m_ctx2:
+            out["context"] = m_ctx2.group(0)
 
     return out
 
@@ -67,7 +77,11 @@ def health_level(health_ok: bool, ready_ok: bool, h5: int | None) -> tuple[str, 
 
 # ---------- Data collection ----------
 status_text = run_cmd("openclaw status 2>/dev/null || true")
+# Some environments don't expose `openclaw session_status` CLI subcommand.
+# Try it first, then fallback to `openclaw status` text.
 session_text = run_cmd("openclaw session_status 2>/dev/null || true")
+if "unknown command" in session_text.lower() or "[error" in session_text.lower():
+    session_text = status_text
 logs_text = run_cmd("openclaw logs --tail 120 2>/dev/null || true")
 
 health_ok, health_msg = check_http("http://127.0.0.1:18789/healthz")
@@ -117,10 +131,12 @@ with c1:
     st.markdown(f"<div class='card'><div class='muted'>GLOBAL STATUS</div><div class='kpi {level_class}'>{level_text}</div><div class='muted'>Refresh: {REFRESH_SEC}s</div></div>", unsafe_allow_html=True)
 with c2:
     h5 = usage.get("h5")
-    st.markdown(f"<div class='card'><div class='muted'>5H QUOTA LEFT</div><div class='kpi'>{h5 if h5 is not None else '-'}%</div></div>", unsafe_allow_html=True)
+    h5_text = f"{h5}%" if h5 is not None else "N/A"
+    st.markdown(f"<div class='card'><div class='muted'>5H QUOTA LEFT</div><div class='kpi'>{h5_text}</div></div>", unsafe_allow_html=True)
 with c3:
     wk = usage.get("week")
-    st.markdown(f"<div class='card'><div class='muted'>WEEK QUOTA LEFT</div><div class='kpi'>{wk if wk is not None else '-'}%</div></div>", unsafe_allow_html=True)
+    wk_text = f"{wk}%" if wk is not None else "N/A"
+    st.markdown(f"<div class='card'><div class='muted'>WEEK QUOTA LEFT</div><div class='kpi'>{wk_text}</div></div>", unsafe_allow_html=True)
 with c4:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     st.markdown(f"<div class='card'><div class='muted'>LAST REFRESH</div><div class='kpi' style='font-size:1.35rem'>{now}</div><div class='muted'>{usage.get('model','unknown')}</div></div>", unsafe_allow_html=True)
