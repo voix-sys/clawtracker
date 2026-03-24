@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import re
 import subprocess
 from urllib.request import Request, urlopen
@@ -13,12 +14,22 @@ REFRESH_SEC = 5
 
 def run_cmd(cmd: str) -> str:
     try:
-        out = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, text=True, timeout=10)
+        out = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, text=True, timeout=12)
         return out.strip()
     except subprocess.CalledProcessError as e:
         return f"[ERROR]\n{e.output.strip()}"
     except Exception as e:
         return f"[ERROR] {e}"
+
+
+def run_json(cmd: str) -> dict | None:
+    raw = run_cmd(cmd)
+    if raw.startswith("[ERROR"):
+        return None
+    try:
+        return json.loads(raw)
+    except Exception:
+        return None
 
 
 def check_http(url: str) -> tuple[bool, str]:
@@ -35,17 +46,14 @@ def check_http(url: str) -> tuple[bool, str]:
 def parse_usage(text: str) -> dict:
     out = {"h5": None, "week": None, "context": None, "model": "unknown"}
 
-    # Model line can contain emoji/bullets; keep robust
     m_model = re.search(r"Model:\s*([^\n]+)", text)
     if m_model:
         out["model"] = m_model.group(1).strip()
     else:
-        # fallback from `openclaw status` table rows
         m_model2 = re.search(r"\b(gpt-[\w\.-]+|gemini-[\w\.-]+|claude-[\w\.-]+|openai-codex/[\w\.-]+)\b", text)
         if m_model2:
             out["model"] = m_model2.group(1)
 
-    # Parse independently to avoid multiline/format drift issues
     m_h5 = re.search(r"5h\s+(\d+)%\s+left", text)
     m_week = re.search(r"Week\s+(\d+)%\s+left", text)
     if m_h5:
@@ -53,16 +61,49 @@ def parse_usage(text: str) -> dict:
     if m_week:
         out["week"] = int(m_week.group(1))
 
-    # Context line format: "Context: 107k/272k (39%) · ..."
     m_ctx = re.search(r"Context:\s*([^\n]+)", text)
     if m_ctx:
         ctx = m_ctx.group(1).strip()
         out["context"] = ctx.split("·")[0].strip()
     else:
-        # fallback from sessions table (e.g., 107k/272k (39%))
         m_ctx2 = re.search(r"\b\d+k/\d+k\s*\(\d+%\)\b", text)
         if m_ctx2:
             out["context"] = m_ctx2.group(0)
+
+    return out
+
+
+def usage_from_status_json(payload: dict | None) -> dict:
+    out = {"h5": None, "week": None, "context": None, "model": "unknown"}
+    if not payload:
+        return out
+
+    # provider usage windows (usedPercent => convert to left)
+    providers = (payload.get("usage") or {}).get("providers") or []
+    if providers:
+        windows = providers[0].get("windows") or []
+        for w in windows:
+            label = str(w.get("label", "")).lower()
+            used = w.get("usedPercent")
+            if isinstance(used, (int, float)):
+                left = max(0, min(100, int(round(100 - used))))
+                if label == "5h":
+                    out["h5"] = left
+                elif label == "week":
+                    out["week"] = left
+
+    sessions = (payload.get("sessions") or {}).get("recent") or []
+    if sessions:
+        s0 = sessions[0]
+        out["model"] = s0.get("model") or out["model"]
+        total = s0.get("totalTokens")
+        ctx = s0.get("contextTokens")
+        used_pct = s0.get("percentUsed")
+        if isinstance(total, int) and isinstance(ctx, int):
+            if isinstance(used_pct, int):
+                out["context"] = f"{total}/{ctx} ({used_pct}%)"
+            else:
+                out["context"] = f"{total}/{ctx}"
 
     return out
 
@@ -77,16 +118,21 @@ def health_level(health_ok: bool, ready_ok: bool, h5: int | None) -> tuple[str, 
 
 # ---------- Data collection ----------
 status_text = run_cmd("openclaw status 2>/dev/null || true")
-# Some environments don't expose `openclaw session_status` CLI subcommand.
-# Try it first, then fallback to `openclaw status` text.
+status_json = run_json("openclaw status --usage --json 2>/dev/null || true")
+
+# `openclaw session_status` may be unavailable in some installs.
 session_text = run_cmd("openclaw session_status 2>/dev/null || true")
-if "unknown command" in session_text.lower() or "[error" in session_text.lower():
+if "unknown command" in session_text.lower() or "[error" in session_text.lower() or not session_text.strip():
     session_text = status_text
+
 logs_text = run_cmd("openclaw logs --tail 120 2>/dev/null || true")
 
 health_ok, health_msg = check_http("http://127.0.0.1:18789/healthz")
 ready_ok, ready_msg = check_http("http://127.0.0.1:18789/readyz")
-usage = parse_usage(session_text)
+
+usage = usage_from_status_json(status_json)
+if usage.get("h5") is None and usage.get("week") is None:
+    usage = parse_usage(session_text)
 
 level_text, level_class = health_level(health_ok, ready_ok, usage.get("h5"))
 
