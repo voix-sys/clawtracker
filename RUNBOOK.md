@@ -28,6 +28,13 @@ export TELEGRAM_CHAT_ID=...
 python monitor_loop.py
 ```
 
+## 3-1) 상시 등록 (적용 완료)
+- 실행 스크립트: `run_monitor.sh`
+- 등록 방식: user crontab
+  - `@reboot` 자동 시작
+  - `*/5` 프로세스 감시(죽으면 자동 재기동)
+- 로그: `/tmp/clawtracker-monitor.log`
+
 ## 4) Tailscale로 외부 보기 (선택)
 로컬 실행 후 Tailscale이 켜져 있으면, 해당 노드의 tailnet IP로 8507 포트 접근.
 보안상 공개 인터넷 노출 금지.

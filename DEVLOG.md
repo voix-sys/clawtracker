@@ -51,6 +51,12 @@
 - `RUNBOOK.md` 추가 (실행/운영/장애 대응/Tailscale 접근 요약)
 - README에서 운영 가이드 연결
 
+### 2026-03-24 11:xx 업데이트
+- 상시 알림 실행 등록 완료
+  - `run_monitor.sh` 추가
+  - user crontab에 `@reboot` + `*/5 watchdog` 등록
+  - `monitor_loop.py` 백그라운드 실행 확인
+
 ### 대기 항목
 - Telegram 신규 봇 토큰 수령 후 실알림 활성화
 - SSE/WebSocket 실시간 스트림 고도화
